@@ -6,7 +6,7 @@ class ResnetBlock(nn.Module):
 
     def __init__(self,dim,padding_type,use_bias,use_dropout,norm_layer):
         super(ResnetBlock,self).__init__()
-        self.conv_block = self.buildResnetBlock(self,dim,padding_type,use_bias,use_dropout,norm_layer)
+        self.conv_block = self.buildResnetBlock(dim,padding_type,use_bias,use_dropout,norm_layer)
     
     def buildResnetBlock(self,dim,padding_type,use_bias,use_dropout,norm_layer):
         """ Build Block: Padding --> Conv2d --> Norm --> ReLU --> Padding --> Conv --> Norm 
