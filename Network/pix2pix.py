@@ -1,9 +1,16 @@
 import torch 
 import torch.nn as nn
 
+class Generator(nn.Module):
+    def __init__(self):
+    
+
 class ResnetGen(nn.Module):
     def __init__(self,in_channels, out_channels, num_filters, padding_type, norm_layer, num_blocks, use_dropout):
         """
+        Generator base on Resnet blocks:
+        n_DownSampling --> n_Resnet Block --> n_UpSampling 
+
         Parameters:
             in_channels (int)       -- the number of channels in input images
             out_channels (int)      -- the number of channels in output images
@@ -108,7 +115,7 @@ class ResnetBlock(nn.Module):
 
         return conv
 
-    def foward(self, x):
+    def forward(self, x):
         out = x + self.conv_block(x)
         return out
 
