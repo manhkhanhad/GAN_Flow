@@ -2,7 +2,31 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 
+
+"""
+*******************************************************************************************
+*******************************************************************************************
+**                                                                                       **
+**                                      GENERATOR                                        **
+**                                                                                       **
+*******************************************************************************************
+*******************************************************************************************
+"""
+
 def Defind_Gen(in_channels, out_channels, num_filters, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+    """Create a generator
+    Parameters:
+        input_nc (int) -- the number of channels in input images
+        output_nc (int) -- the number of channels in output images
+        num_filters (int) -- the number of filters in the last conv layer
+        netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks 
+        norm (str) -- the name of normalization layers used in the network: batch | instance | none (may need later)
+        use_dropout (bool) -- if use dropout layers.
+        init_type (str)    -- the name of our initialization method.
+        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
+        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
+    Returns a generator
+    """
     net = None
     if netG == 'resnet_6':
         net = ResnetGen(in_channels,out_channels,num_filters,num_blocks = 6, use_dropout = use_dropout)
@@ -124,6 +148,15 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)
         return out
 
+"""
+*******************************************************************************************
+*******************************************************************************************
+**                                                                                       **
+**                                      DISCRIMINATOR                                    **
+**                                                                                       **
+*******************************************************************************************
+*******************************************************************************************
+"""
 
 class  NLayerDiscriminator(nn.Module):
     """
@@ -155,8 +188,28 @@ class  NLayerDiscriminator(nn.Module):
         return self.network(input)
 
 def Defind_Dis(in_channels, init_type='normal', init_gain=0.02, gpu_ids=[]):
+    """
+    Parameters:
+        in_channels (int)     -- the number of channels in input images
+        init_type (str)    -- the name of the initialization method.
+        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
+        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
+    Returns a discriminator
+    """
+
     net = NLayerDiscriminator(in_channels)
     return init_net(net, init_type, init_gain, gpu_ids)
+
+
+"""
+*******************************************************************************************
+**                                                                                       **
+**                                      UTIL FUNCTION                                    **
+**                                                                                       **
+*******************************************************************************************
+"""
+
+
 
 def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
@@ -191,3 +244,39 @@ def init_weights(net, init_type = 'normal', init_gain=0.02):
 
     print('initialize network with %s' % init_type)
     net.apply(init_func)  # apply the initialization function <init_func> 
+
+
+"""
+*******************************************************************************************
+**                                                                                       **
+**                                      LOSS FUNCTION                                    **
+**                                                                                       **
+*******************************************************************************************
+"""
+
+class GANLoss(nn.Module):
+    """Define different GAN objectives"""
+    def __init__(self, gan_mode = 'lsgan', target_real_label = 1.0, target_fake_label = 0.0):
+        super(GANLoss,self).__init__()
+        self.register_buffer('real_label', torch.tensor(target_real_label))
+        self.register_buffer('fake_label', torch.tensor(target_fake_label))
+        self.gan_mode = gan_mode
+
+        if gan_mode == 'lsgan':
+            self.loss = nn.MSELoss()
+        else:
+            raise NotImplementedError('gan mode %s not implemented' % gan_mode)
+
+    def get_target_tensor(self, prediction, target_is_real):
+        if target_is_real:
+            target_tensor = self.real_label
+        else:
+            target_tensor = self.fake_label
+        return target_tensor.expand_as(prediction)
+    
+    def __call__(self, prediction, target_is_real):
+        if self.gan_mode in ['lsgan', 'vanilla']:
+            target_tensor = self.get_target_tensor(prediction, target_is_real)
+            loss = self.loss(prediction, target_tensor)
+        return loss
+
