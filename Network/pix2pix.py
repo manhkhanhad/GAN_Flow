@@ -1,6 +1,7 @@
 import torch 
 import torch.nn as nn
 from torch.nn import init
+import os 
 
 
 """
@@ -272,7 +273,7 @@ class GANLoss(nn.Module):
             target_tensor = self.real_label
         else:
             target_tensor = self.fake_label
-        return target_tensor.expand_as(prediction)
+        return target_tensor.expand_as(prediction) 
     
     def __call__(self, prediction, target_is_real):
         if self.gan_mode in ['lsgan', 'vanilla']:
@@ -280,3 +281,83 @@ class GANLoss(nn.Module):
             loss = self.loss(prediction, target_tensor)
         return loss
 
+"""
+*******************************************************************************************
+**                                                                                       **
+**                                      Pix2Pix MODEL                                    **
+**                                                                                       **
+*******************************************************************************************
+"""
+
+class Pix2Pix():
+    def __init__(self,opt):
+        self.opt = opt
+        self.gpu_ids = opt.gpu_ids
+        self.isTrain = opt.isTrain
+        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')  # get device name: CPU or GPU
+        self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
+        if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
+            torch.backends.cudnn.benchmark = True
+        self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
+        self.visual_names = ['real_A', 'fake_B', 'real_B']
+        self.optimizers = []
+        self.image_paths = []
+        self.metric = 0  # used for learning rate policy 'plateau'
+
+
+        self.netG = Defind_Gen(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+                                      not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+
+        if self.isTrain:
+            self.netD = Defind_Dis(opt.input_nc + opt.output_nc, opt.init_type, opt.init_gain, self.gpu_ids)
+            self.model_names = ['G', 'D']
+            # define loss functions
+            self.criterionGAN = GANLoss(opt.gan_mode).to(self.device)
+            self.criterionL1 = torch.nn.L1Loss()
+            # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
+            self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizers.append(self.optimizer_G)
+            self.optimizers.append(self.optimizer_D)
+        else:
+            self.model_names = ['G']
+
+    def forward(self):
+        self.fake_B = self.netG(self.real_A)
+
+    def backward_D(self):
+        
+        fake_AB = torch.cat((self.real_A, self.fake_B),1) # Concat fake_B and real_A to feed to Discriminator
+        pred_fake = self.netD(fake_AB.detach()) 
+        self.loss_D_fake = self.criterionGAN(pred_fake, False)
+
+        real_AB = torch.cat((self.real_A, self.real_B),1)
+        pred_real = self.netD(real_AB.detach())
+        self.loss_D_real = self.criterionGAN(pred_real,True)
+
+        self.loss_D = 0.5 * (self.loss_D_fake + self.loss_D_real)
+        self.loss_D.backward()
+
+    def backward_G(self):
+        # First, G(A) should fake the discriminator
+        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+        pred_fake = self.netD(fake_AB)
+        self.loss_G_GAN = self.criterionGAN(pred_fake, True)
+        # Second, G(A) = B
+        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_L1
+        # combine loss and calculate gradients
+        self.loss_G = self.loss_G_GAN + self.loss_G_L1
+        self.loss_G.backward()
+    
+    def optimize_parameters(self):
+        self.forward()                   # compute fake images: G(A)
+        # update D
+        self.set_requires_grad(self.netD, True)  # enable backprop for D
+        self.optimizer_D.zero_grad()     # set D's gradients to zero
+        self.backward_D()                # calculate gradients for D
+        self.optimizer_D.step()          # update D's weights
+        # update G
+        self.set_requires_grad(self.netD, False)  # D requires no gradients when optimizing G
+        self.optimizer_G.zero_grad()        # set G's gradients to zero
+        self.backward_G()                   # calculate gradient for G
+        self.optimizer_G.step()             # update G's weights
