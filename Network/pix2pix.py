@@ -1,5 +1,6 @@
 import torch 
 import torch.nn as nn
+from torch.nn import init
 
 def Defind_Gen(in_channels, out_channels, num_filters, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
     net = None
@@ -124,4 +125,69 @@ class ResnetBlock(nn.Module):
         return out
 
 
+class  NLayerDiscriminator(nn.Module):
+    """
+    NLayerDiscriminator 
+    Parameters:
+        in_channels (int)       -- the number of channels in input images
+    """
+    def __init__(self,in_channels,):
+        super(NLayerDiscriminator,self).__init__()
+        self.network = nn.Sequential()
+        self.network.append(nn.Conv2d(in_channels,64,
+                            kernel_size = 4,stride = 2,padding=1))
+        self.network.append(nn.LeakyReLU(0.2))
+        
+        last_chanel = 64
 
+        for _ in range(3):
+            self.network.append(nn.Conv2d(last_chanel, last_chanel*2, 
+                                kernel_size= 4, stride= 2, padding= 1))
+            self.network.append(nn.BatchNorm2d(last_chanel*2))
+            self.network.append(nn.LeakyReLU(0.2))
+            last_chanel = in_channels * 2
+
+        self.network.append(nn.Conv2d(last_chanel,1,kernel_size= 4,
+                            stride=2,padding=1))
+        self.network.append(nn.Sigmoid())
+    
+    def forward(self,input):
+        return self.network(input)
+
+def Defind_Dis(in_channels, init_type='normal', init_gain=0.02, gpu_ids=[]):
+    net = NLayerDiscriminator(in_channels)
+    return init_net(net, init_type, init_gain, gpu_ids)
+
+def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
+    """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
+    Parameters:
+        net (network)      -- the network to be initialized
+        init_type (str)    -- the name of an initialization method: normal | xavier | kaiming | orthogonal
+        gain (float)       -- scaling factor for normal, xavier and orthogonal.
+        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
+    Return an initialized network.
+    """
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
+    init_weights(net, init_type, init_gain=init_gain)
+    return net
+
+def init_weights(net, init_type = 'normal', init_gain=0.02):
+    """Initialize network weights.
+    Parameters:
+        net (network)   -- network to be initialized
+        init_type (str) -- the name of an initialization method: normal | xavier | kaiming | orthogonal
+        init_gain (float)    -- scaling factor for normal, xavier and orthogonal
+    """
+    def init_func(m):  # define the initialization function
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+            init.normal_(m.weight.data, 0.0, init_gain)
+        elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+            init.normal_(m.weight.data, 1.0, init_gain)
+            init.constant_(m.bias.data, 0.0)
+
+    print('initialize network with %s' % init_type)
+    net.apply(init_func)  # apply the initialization function <init_func> 
