@@ -56,7 +56,7 @@ class ResnetGen(nn.Module):
         """
 
         super(ResnetGen,self).__init__()
-        self.model = nn.Sequential()
+        self.model = []
         use_bias = 1
 
         self.model.append(nn.ReflectionPad2d(3))
@@ -72,10 +72,8 @@ class ResnetGen(nn.Module):
             self.model.append(nn.ReLU(True))
 
         multi = 2 ** n_downsampling
-
         for i in range(num_blocks):   # Add ResnetBlock
             self.model.append(ResnetBlock(multi * num_filters, padding_type = padding_type, use_bias = use_bias, use_dropout = use_dropout))
-
         for i in range(n_downsampling): # UpSampling
             multi = 2 * (n_downsampling - i)
             self.model.append(nn.ConvTranspose2d(multi * num_filters, multi * num_filters / 2 , kernel_size = 3, 
@@ -86,6 +84,8 @@ class ResnetGen(nn.Module):
         self.model.append(nn.ReflectionPad2d(3))
         self.model.append(nn.Conv2d(num_filters, out_channels, kernel_size = 7))
         self.model.append(nn.Tanh())
+
+        self.model = nn.Sequential(*self.model)
 
     def forward(self, input):
         return self.model(input) 
@@ -112,14 +112,14 @@ class ResnetBlock(nn.Module):
 
         """
 
-        conv = nn.Sequential()
+        conv = []
 
         zero_padding = 0
-        if padding_type == 'reflect':
+        if padding_type == "reflect":
             conv.append(nn.ReflectionPad1d(1))
-        if padding_type == 'replicate':
+        elif padding_type == "replicate":
             conv.append(nn.ReplicationPad1d(1))
-        if padding_type == 'zero':
+        elif padding_type == "zero":
             zero_padding = 1
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
@@ -134,9 +134,9 @@ class ResnetBlock(nn.Module):
         zero_padding = 0
         if padding_type == 'reflect':
             conv.append(nn.ReflectionPad1d(1))
-        if padding_type == 'replicate':
+        elif padding_type == 'replicate':
             conv.append(nn.ReplicationPad1d(1))
-        if padding_type == 'zero':
+        elif padding_type == 'zero':
             zero_padding = 1
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
@@ -144,7 +144,7 @@ class ResnetBlock(nn.Module):
         conv.append(nn.Conv2d(dim,dim,kernel_size=3,padding=zero_padding,bias=use_bias))
         conv.append(nn.BatchNorm2d(dim))
 
-        return conv
+        return nn.Sequential(*conv)
 
     def forward(self, x):
         out = x + self.conv_block(x)
@@ -168,7 +168,7 @@ class  NLayerDiscriminator(nn.Module):
     """
     def __init__(self,in_channels,):
         super(NLayerDiscriminator,self).__init__()
-        self.network = nn.Sequential()
+        self.network = []
         self.network.append(nn.Conv2d(in_channels,64,
                             kernel_size = 4,stride = 2,padding=1))
         self.network.append(nn.LeakyReLU(0.2))
@@ -185,6 +185,7 @@ class  NLayerDiscriminator(nn.Module):
         self.network.append(nn.Conv2d(last_chanel,1,kernel_size= 4,
                             stride=2,padding=1))
         self.network.append(nn.Sigmoid())
+        self.network = nn.Sequential(*self.network)
     
     def forward(self,input):
         return self.network(input)
@@ -272,9 +273,8 @@ class Pix2Pix():
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
         self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')  # get device name: CPU or GPU
+        
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
-        if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
-            torch.backends.cudnn.benchmark = True
         self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         self.optimizers = []
@@ -338,3 +338,16 @@ class Pix2Pix():
         self.optimizer_G.zero_grad()        # set G's gradients to zero
         self.backward_G()                   # calculate gradient for G
         self.optimizer_G.step()             # update G's weights
+
+    def get_loss(self):
+        errors_ret = OrderedDict()
+        for name in self.loss_names:
+            if isinstance(name, str):
+                errors_ret[name] = float(getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
+        return errors_ret
+
+    def set_input(self):
+        AtoB = self.opt.direction == 'AtoB'
+        self.real_A = input['A' if AtoB else 'B'].to(self.device)
+        self.real_B = input['B' if AtoB else 'A'].to(self.device)
+        self.image_paths = input['A_paths' if AtoB else 'B_paths']

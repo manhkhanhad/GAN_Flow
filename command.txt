@@ -1,0 +1,1 @@
+python3 train.py --dataroot datasets/selfie2anime --name selfie2anime --gpu_ids -1

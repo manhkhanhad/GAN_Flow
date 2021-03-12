@@ -1,3 +1,4 @@
+import torch.nn as nn
 class GANLoss(nn.Module):
     """Define different GAN objectives"""
     def __init__(self, gan_mode = 'lsgan', target_real_label = 1.0, target_fake_label = 0.0):
