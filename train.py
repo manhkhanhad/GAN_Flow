@@ -3,6 +3,7 @@ import time
 from create_dataset import PairDataset
 from Network.pix2pix import Pix2Pix
 from Utils.setup import setup_GPU
+import torch
 
 if __name__== '__main__':
     #Define the common parserions
@@ -54,14 +55,24 @@ if __name__== '__main__':
     parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
     parser.add_argument('--lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
     parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
+    parser.add_argument('--lambda_L1',type=float, default=100,help="weight for L1 loss")
 
     opt = parser.parse_args()
+    #set up GPU
     setup_GPU(opt)
+    #Load dataset
     dataset = PairDataset(opt)
+    dataloader = torch.utils.data.DataLoader(
+                                dataset,
+                                batch_size=opt.batch_size,
+                                shuffle= opt.shuffle,
+                                num_workers=int(opt.num_threads))
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
 
+    #Create model
     model = Pix2Pix(opt)
+
     
     #if opt.continue_train:
         #Load network
@@ -69,7 +80,7 @@ if __name__== '__main__':
     total_iters = 0
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):
         epoch_start = time.time()
-        for i,data in enumerate(dataset):
+        for i,data in enumerate(dataloader):
             model.set_input(data)
             model.optimize_parameters()
 
@@ -77,14 +88,14 @@ if __name__== '__main__':
             loss = model.get_loss()
             time_per_epoch = time.time() - epoch_start
             message = '(epoch: %d/%d, time: %.3f) ' % (epoch, opt.n_epochs + opt.n_epochs_decay, time_per_epoch )
-            for k, v in losses.items():
+            for k, v in loss.items():
                 message += '%s: %.3f ' % (k, v)
 
             #Save model
             if epoch % opt.save_epoch_freq == 0:       
                 print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
-            model.save_networks('latest')
-            model.save_networks(epoch)
+            #model.save_networks('latest')
+            #model.save_networks(epoch)
 
 
 

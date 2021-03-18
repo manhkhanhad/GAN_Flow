@@ -2,8 +2,9 @@ import os
 from torchvision import transforms
 from PIL import Image
 import torch
+from torch.utils.data import Dataset
 
-class PairDataset():
+class PairDataset(Dataset):
     def __init__(self,opt):
         # tu AB_path -> tensor A,B -> dictionary data{'A': A, 'B': B, 'A_paths': AB_path, 'B_paths': AB_path}  (Unaligned_dataset.py)
         # dictionary data -> pytorch DataLoader     (data/__init__.py class CustomDatasetDataLoader() )
@@ -25,10 +26,10 @@ class PairDataset():
             input_nc = opt.output_nc
             output_nc = opt.input_nc
 
-        trainA_transform = transforms.Compose([
+        self.trainA_transform = transforms.Compose([
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
-        trainB_transform = transforms.Compose([
+        self.trainB_transform = transforms.Compose([
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
 
@@ -38,8 +39,8 @@ class PairDataset():
         B_path = self.B_paths[index]
         A_img = Image.open(A_path).convert('RGB')
         B_img = Image.open(B_path).convert('RGB')
-        A = self.transform_A(A_img)
-        A = self.transform_A(A_img)
+        A = self.trainA_transform(A_img)
+        B = self.trainB_transform(B_img)
         return {'A': A, 'B': B, 'A_paths': self.A_paths, 'B_paths': self.B_paths}
 
     def __len__(self):
@@ -67,13 +68,3 @@ def make_dataset(dir):
                 path = os.path.join(root, f_name)
                 images.append(path)
     return images
-
-def create_dataset(opt):
-
-    data_loader = PairDataset(opt)
-    dataloader = torch.utils.data.DataLoader(
-                                self.dataset,
-                                batch_size=opt.batch_size,
-                                shuffle= opt.shuffle,
-                                num_workers=int(opt.num_threads))
-    return dataloader

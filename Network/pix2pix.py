@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import os
 from loss import GANLoss
+from collections import OrderedDict
 
 
 """
@@ -57,17 +58,16 @@ class ResnetGen(nn.Module):
 
         super(ResnetGen,self).__init__()
         self.model = []
-        use_bias = 1
-
+        use_bias = 0
         self.model.append(nn.ReflectionPad2d(3))
-        self.model.append(nn.Conv2d(in_channels, num_filters, kernel_size = 7, padding = 0))
+        self.model.append(nn.Conv2d(in_channels, num_filters, kernel_size = 7, padding = 0, bias=use_bias))
         self.model.append(nn.BatchNorm2d(num_filters))
         self.model.append(nn.ReLU(True))
 
         n_downsampling = 2
         for i in range(n_downsampling): # DownSampling 
             multi = 2 ** i
-            self.model.append(nn.Conv2d(multi * num_filters, multi * num_filters * 2, kernel_size = 3, stride = 2, padding = 1))
+            self.model.append(nn.Conv2d(multi * num_filters, multi * num_filters * 2, kernel_size = 3, stride = 2, padding = 1,bias=use_bias))
             self.model.append(nn.BatchNorm2d(multi * num_filters * 2))
             self.model.append(nn.ReLU(True))
 
@@ -76,13 +76,13 @@ class ResnetGen(nn.Module):
             self.model.append(ResnetBlock(multi * num_filters, padding_type = padding_type, use_bias = use_bias, use_dropout = use_dropout))
         for i in range(n_downsampling): # UpSampling
             multi = 2 * (n_downsampling - i)
-            self.model.append(nn.ConvTranspose2d(multi * num_filters, multi * num_filters / 2 , kernel_size = 3, 
-                                    stride = 2,padding = 1))
-            self.model.append(nn.BatchNorm2d(nn.BatchNorm2d(multi * num_filters / 2)))
+            self.model.append(nn.ConvTranspose2d(multi * num_filters, int(multi * num_filters / 2) , kernel_size = 3, 
+                                    stride = 2,padding = 1,output_padding=1, bias=use_bias))
+            self.model.append(nn.BatchNorm2d(int(multi * num_filters / 2)))
             self.model.append(nn.ReLU(True))
         
         self.model.append(nn.ReflectionPad2d(3))
-        self.model.append(nn.Conv2d(num_filters, out_channels, kernel_size = 7))
+        self.model.append(nn.Conv2d(num_filters, out_channels, kernel_size = 7,padding=0))
         self.model.append(nn.Tanh())
 
         self.model = nn.Sequential(*self.model)
@@ -116,9 +116,9 @@ class ResnetBlock(nn.Module):
 
         zero_padding = 0
         if padding_type == "reflect":
-            conv.append(nn.ReflectionPad1d(1))
+            conv.append(nn.ReflectionPad2d(1))
         elif padding_type == "replicate":
-            conv.append(nn.ReplicationPad1d(1))
+            conv.append(nn.ReplicationPad2d(1))
         elif padding_type == "zero":
             zero_padding = 1
         else:
@@ -133,9 +133,9 @@ class ResnetBlock(nn.Module):
 
         zero_padding = 0
         if padding_type == 'reflect':
-            conv.append(nn.ReflectionPad1d(1))
+            conv.append(nn.ReflectionPad2d(1))
         elif padding_type == 'replicate':
-            conv.append(nn.ReplicationPad1d(1))
+            conv.append(nn.ReplicationPad2d(1))
         elif padding_type == 'zero':
             zero_padding = 1
         else:
@@ -166,27 +166,37 @@ class  NLayerDiscriminator(nn.Module):
     Parameters:
         in_channels (int)       -- the number of channels in input images
     """
-    def __init__(self,in_channels,):
+    def __init__(self,in_channels,n_layers=3):
         super(NLayerDiscriminator,self).__init__()
         self.network = []
         self.network.append(nn.Conv2d(in_channels,64,
                             kernel_size = 4,stride = 2,padding=1))
-        self.network.append(nn.LeakyReLU(0.2))
+        self.network.append(nn.LeakyReLU(0.2,True))
         
-        last_chanel = 64
+        use_bias = 0
+        nf_mult = 1
+        nf_mult_prev = 1
+        ndf = 64
+        for n in range(1, 3):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2 ** n, 8)
+            self.network.append(nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, 
+                                kernel_size= 4, stride= 2, padding= 1,bias=use_bias))
+            self.network.append(nn.BatchNorm2d(ndf * nf_mult))
+            self.network.append(nn.LeakyReLU(0.2,True))
+        
 
-        for _ in range(3):
-            self.network.append(nn.Conv2d(last_chanel, last_chanel*2, 
-                                kernel_size= 4, stride= 2, padding= 1))
-            self.network.append(nn.BatchNorm2d(last_chanel*2))
-            self.network.append(nn.LeakyReLU(0.2))
-            last_chanel = in_channels * 2
+        nf_mult_prev = nf_mult
+        nf_mult = min(2 ** n_layers, 8)
+        self.network.append(nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,kernel_size= 4,
+                            stride=1,padding=1,bias=use_bias))
+        self.network.append(nn.BatchNorm2d(ndf * nf_mult))
+        self.network.append(nn.LeakyReLU(0.2,True))
 
-        self.network.append(nn.Conv2d(last_chanel,1,kernel_size= 4,
-                            stride=2,padding=1))
-        self.network.append(nn.Sigmoid())
+        self.network.append(nn.Conv2d(ndf * nf_mult, 1,kernel_size= 4,
+                            stride=1,padding=1))
         self.network = nn.Sequential(*self.network)
-    
+        print(self.network)
     def forward(self,input):
         return self.network(input)
 
@@ -303,7 +313,6 @@ class Pix2Pix():
         self.fake_B = self.netG(self.real_A)
 
     def backward_D(self):
-        
         fake_AB = torch.cat((self.real_A, self.fake_B),1) # Concat fake_B and real_A to feed to Discriminator
         pred_fake = self.netD(fake_AB.detach()) 
         self.loss_D_fake = self.criterionGAN(pred_fake, False)
@@ -346,8 +355,21 @@ class Pix2Pix():
                 errors_ret[name] = float(getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
         return errors_ret
 
-    def set_input(self):
+    def set_input(self,input):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
+    
+    def set_requires_grad(self, nets, requires_grad=False):
+        """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
+        Parameters:
+            nets (network list)   -- a list of networks
+            requires_grad (bool)  -- whether the networks require gradients or not
+        """
+        if not isinstance(nets, list):
+            nets = [nets]
+        for net in nets:
+            if net is not None:
+                for param in net.parameters():
+                    param.requires_grad = requires_grad
