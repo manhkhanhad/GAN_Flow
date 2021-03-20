@@ -86,6 +86,7 @@ class ResnetGen(nn.Module):
         self.model.append(nn.Tanh())
 
         self.model = nn.Sequential(*self.model)
+        print(self.model)
 
     def forward(self, input):
         return self.model(input) 
@@ -373,3 +374,18 @@ class Pix2Pix():
             if net is not None:
                 for param in net.parameters():
                     param.requires_grad = requires_grad
+
+    def save_networks(self,epoch):
+        for name in self.model_names:
+            if isinstance(name, str):
+                save_filename = '%s_net_%s.pth' % (epoch, name)
+                save_path = os.path.join(self.save_dir, save_filename)
+                net = getattr(self, 'net' + name)
+
+                if os.path.isdir(self.save_dir) == False:
+                    os.makedirs(self.save_dir)
+                if len(self.gpu_ids) > 0 and torch.cuda.is_available():
+                    torch.save(net.module.cpu().state_dict(), save_path)
+                    net.cuda(self.gpu_ids[0])
+                else:
+                    torch.save(net.cpu().state_dict(), save_path)

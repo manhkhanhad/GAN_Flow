@@ -4,6 +4,7 @@ from create_dataset import PairDataset
 from Network.pix2pix import Pix2Pix
 from Utils.setup import setup_GPU
 import torch
+from tqdm import tqdm
 
 if __name__== '__main__':
     #Define the common parserions
@@ -78,7 +79,7 @@ if __name__== '__main__':
         #Load network
 
     total_iters = 0
-    for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):
+    for epoch in tqdm(range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1)):
         epoch_start = time.time()
         for i,data in enumerate(dataloader):
             model.set_input(data)
@@ -94,8 +95,8 @@ if __name__== '__main__':
             #Save model
             if epoch % opt.save_epoch_freq == 0:       
                 print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
-            #model.save_networks('latest')
-            #model.save_networks(epoch)
+            model.save_networks('latest')
+            model.save_networks(epoch)
 
 
 
