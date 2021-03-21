@@ -35,19 +35,10 @@ if __name__== '__main__':
     parser.add_argument('--load_size', type=int, default=256, help='scale images to this size')
     parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
     parser.add_argument('--shuffle', type=int, default=False, help='shuffle dataset')
-    # additional parameters
-    parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
-    parser.add_argument('--load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
-    parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
-    parser.add_argument('--suffix', default='', type=str, help='customized suffix: parser.name = parser.name + suffix: e.g., {model}_{netG}_size{load_size}')
-     # network saving and loading parameters
-    parser.add_argument('--save_latest_freq', type=int, default=5000, help='frequency of saving the latest results')
-    parser.add_argument('--save_epoch_freq', type=int, default=5, help='frequency of saving checkpoints at the end of epochs')
-    parser.add_argument('--save_by_iter', action='store_true', help='whether saves model by iteration')
+    # training parameters
     parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
     parser.add_argument('--epoch_count', type=int, default=1, help='the starting epoch count, we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>, ...')
     parser.add_argument('--phase', type=str, default='train', help='train, val, test, etc')
-    # training parameters
     parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs with the initial learning rate')
     parser.add_argument('--n_epochs_decay', type=int, default=100, help='number of epochs to linearly decay learning rate to zero')
     parser.add_argument('--beta1', type=float, default=0.5, help='momentum term of adam')
@@ -82,21 +73,22 @@ if __name__== '__main__':
     for epoch in tqdm(range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1)):
         epoch_start = time.time()
         for i,data in enumerate(dataloader):
+            iter_start_time = time.time()
             model.set_input(data)
             model.optimize_parameters()
 
-            #Print Loss
-            loss = model.get_loss()
-            time_per_epoch = time.time() - epoch_start
-            message = '(epoch: %d/%d, time: %.3f) ' % (epoch, opt.n_epochs + opt.n_epochs_decay, time_per_epoch )
-            for k, v in loss.items():
-                message += '%s: %.3f ' % (k, v)
-
-            #Save model
-            if epoch % opt.save_epoch_freq == 0:       
-                print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
-            model.save_networks('latest')
-            model.save_networks(epoch)
+        #Save model
+        if epoch % opt.save_epoch_freq == 0:       
+            print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
+        model.save_networks('latest')
+        model.save_networks(epoch)
+        #Print Loss
+        loss = model.get_loss()
+        time_per_epoch = time.time() - epoch_start
+        message = '(epoch: %d/%d, time: %.3f) ' % (epoch, opt.n_epochs + opt.n_epochs_decay, time_per_epoch )
+        for k, v in loss.items():
+            message += '%s: %.3f ' % (k, v)
+        print(message)
 
 
 

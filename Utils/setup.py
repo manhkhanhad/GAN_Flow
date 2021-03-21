@@ -1,3 +1,4 @@
+import torch
 def setup_GPU(opt):
     str_ids = opt.gpu_ids.split(',')
     opt.gpu_ids = []
