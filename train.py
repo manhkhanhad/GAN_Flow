@@ -5,6 +5,7 @@ from Network.pix2pix import Pix2Pix
 from Utils.setup import setup_GPU
 import torch
 from tqdm import tqdm
+import os
 
 if __name__== '__main__':
     #Define the common parserions
@@ -48,6 +49,7 @@ if __name__== '__main__':
     parser.add_argument('--lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
     parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
     parser.add_argument('--lambda_L1',type=float, default=100,help="weight for L1 loss")
+    parser.add_argument('--save_epoch_freq',type=int, default=5,help="weight for L1 loss")
 
     opt = parser.parse_args()
     #set up GPU
@@ -66,11 +68,19 @@ if __name__== '__main__':
     model = Pix2Pix(opt)
 
     
-    #if opt.continue_train:
-        #Load network
+    if opt.continue_train:
+        model.load_networks('latest')
+        path = os.path.join(opt.checkpoints_dir,opt.name)
+        list_epoch = []
+        for name in os.listdir(path):
+            epoch = name[:name.find('_')]
+            if epoch != 'latest':
+                list_epoch.append(epoch)
+        print(max(list_epoch))
+        opt.epoch_count = int(max(list_epoch))
 
     total_iters = 0
-    for epoch in tqdm(range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1)):
+    for epoch in tqdm(range(opt.epoch_count+1, opt.n_epochs + opt.n_epochs_decay + 1)):
         epoch_start = time.time()
         for i,data in enumerate(dataloader):
             iter_start_time = time.time()

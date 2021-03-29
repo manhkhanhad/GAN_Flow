@@ -376,6 +376,7 @@ class Pix2Pix():
                     param.requires_grad = requires_grad
 
     def save_networks(self,epoch):
+        save_path = self.opt.checkpoints_dir
         for name in self.model_names:
             if isinstance(name, str):
                 save_filename = '%s_net_%s.pth' % (epoch, name)
@@ -390,6 +391,26 @@ class Pix2Pix():
                 else:
                     torch.save(net.cpu().state_dict(), save_path)
     
+    def load_networks(self,epoch):
+        save_path = self.opt.checkpoints_dir
+        for name in self.model_names:
+            if isinstance(name, str):
+                save_filename = '%s_net_%s.pth' % (epoch, name)
+                save_path = os.path.join(self.save_dir, save_filename)
+                net = getattr(self, 'net' + name)
+                print('loading the %s from %s' %('net' + name,save_path))
+
+                if isinstance(net, torch.nn.DataParallel):
+                    net = net.module
+
+                state_dict = torch.load(save_path, map_location=str(self.device))
+                if hasattr(state_dict, '_metadata'):
+                    del state_dict._metadata
+                
+                net.load_state_dict(state_dict)
+                
+
+
 def get_scheduler(optimizer, opt):
     """Return a learning rate scheduler
 
