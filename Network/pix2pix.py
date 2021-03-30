@@ -89,6 +89,7 @@ class ResnetGen(nn.Module):
         print(self.model)
 
     def forward(self, input):
+        print("size",input.shape)
         return self.model(input) 
 
         

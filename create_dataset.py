@@ -47,6 +47,37 @@ class PairDataset(Dataset):
         return len(self.A_paths)
 
 
+class TestData(Dataset):
+    def __init__(self,opt):
+
+        if opt.direction == 'AtoB':
+            self.dir_test = os.path.join(opt.dataroot,'testA')  # create a path '/path/to/data/trainA'
+            self.test_paths = sorted(make_dataset(self.dir_test))   # load images from '/path/to/data/trainA'
+            self.test_size = len(self.test_paths)  # get the size of dataset A
+
+            input_nc = opt.input_nc
+            output_nc = opt.output_nc
+        else:
+            self.dir_test = os.path.join(opt.dataroot, opt.phase + 'testB')  # create a path '/path/to/data/trainA'
+            self.test_paths = sorted(make_dataset(self.dir_test))   # load images from '/path/to/data/trainA'
+            self.test_size = len(self.test_paths)  # get the size of dataset A
+            input_nc = opt.output_nc
+            output_nc = opt.input_nc
+
+        self.train_transform = transforms.Compose([
+                                    transforms.ToTensor(),
+                                    transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
+
+    def __getitem__(self, index):
+        path = self.test_paths[index]
+        test_img = Image.open(path).convert('RGB')
+        test = self.train_transform(test_img)
+        return {'test': test,'test_paths': self.test_paths}
+
+    def __len__(self):
+        return len(self.test_paths)
+
+
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
     '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP',
