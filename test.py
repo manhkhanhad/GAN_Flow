@@ -3,7 +3,7 @@ import tqdm
 from Network.pix2pix import Defind_Gen
 from Network.pix2pix import Pix2Pix
 from create_dataset import TestData
-from Utils.setup import setup_GPU
+from Utils.Utils import setup_GPU, save_result
 import os
 import torch
 import matplotlib.pyplot as plt
@@ -70,8 +70,6 @@ if __name__== '__main__':
     #Test
     with torch.no_grad():
         for i, data in enumerate(dataloader):
-            if i == 1:
-                break
             #model.set_input(data)  # unpack data from data loader
             input_image = data['test'].to(device)
             image_paths = data['test_paths']
@@ -79,13 +77,19 @@ if __name__== '__main__':
             result = Gen(input_image)
             
             #show test image
-            test_img = result[0]
-            print(test_img.shape)
-            test_img = test_img.permute(1,2,0)
-            print(test_img+1)
-            plt.imshow(test_img.cpu())
+            #test_img = result[0]
+            #print(test_img.shape)
+            #test_img = test_img.permute(1,2,0)
+            #print(test_img+1)
+            #plt.imshow(test_img.cpu())
             #plt.imshow(test_img)
+
             #Save Image
-            #save_result(result,image_paths)
+            result_dir = os.path.join(opt.results_dir,opt.name)
+            if not os.path.exists(result_dir):
+                os.mkdir(result_dir)
+            save_result(result,image_paths,result_dir)
 
-
+            #Print process
+            if i%5 == 0:
+                print("[{}/{}]".format(i,len(dataset)))

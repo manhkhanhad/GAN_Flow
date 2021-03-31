@@ -72,7 +72,7 @@ class TestData(Dataset):
         path = self.test_paths[index]
         test_img = Image.open(path).convert('RGB')
         test = self.train_transform(test_img)
-        return {'test': test,'test_paths': self.test_paths}
+        return {'test': test,'test_paths': path}
 
     def __len__(self):
         return len(self.test_paths)
